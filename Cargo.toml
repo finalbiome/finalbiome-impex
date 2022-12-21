@@ -1,0 +1,14 @@
+[package]
+name = "finalbiome-impex"
+version = "0.1.0"
+description = "A utility to easily create a game spec for testnet."
+authors = ["FinalBiome Devs <https://github.com/finalbiome>"]
+homepage = "https://finalbiome.net/"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+repository = "https://github.com/finalbiome/finalbiome-impex/"
+readme = "README.md"
+
+[dependencies]
+clap = { version = "4.0.30", features = ["derive"] }
