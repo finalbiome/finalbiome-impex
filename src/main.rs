@@ -1,7 +1,5 @@
 use clap::Parser;
-use std::{
-	path::{Path, PathBuf}
-};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[clap(
@@ -20,8 +18,11 @@ enum Impex {
     #[clap(long, short, required = true)]
     organization: String,
     /// Path to the game file to which the game configuration will be written.
-		#[clap(long, short, default_value = "./game_spec.json")]
+    #[clap(long, short, default_value = "./game_spec.json")]
     game_spec: PathBuf,
+    /// Whether to overwrite the file if it exists?
+    #[clap(long, short = 'w', default_value = "false")]
+    overwrite: bool,
   },
   /// Create game from game spec file.
   Import {
@@ -35,30 +36,29 @@ enum Impex {
     #[clap(long, short, required = true)]
     game_spec: PathBuf,
     /// Game organization account key seed.
-    #[clap(long, short ='s', required = true)]
+    #[clap(long, short = 's', required = true)]
     organization_seed: String,
   },
 }
 
-impl Impex {
-  /// Returns the path where the game spec should be saved or read from.
-  fn game_spec_path(&self) -> &Path {
-    match self {
-      Impex::Export { game_spec, .. } => game_spec.as_path(),
-      Impex::Import { game_spec, .. } => game_spec.as_path(),
-    }
-  }
-}
-
-fn main() -> Result<(), String> {
-  
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let impex = Impex::parse();
-  let game_spec_path = impex.game_spec_path().to_path_buf();
 
   match impex {
-      Impex::Export { endpoint, organization, game_spec } => println!("Export"),
-      Impex::Import { endpoint, organization, game_spec, organization_seed } => println!("Import"),
+    Impex::Export {
+      endpoint,
+      organization,
+      game_spec,
+      overwrite,
+    } => finalbiome_impex::export_game_spec(endpoint, organization, game_spec, overwrite).await,
+    Impex::Import {
+      endpoint,
+      organization,
+      game_spec,
+      organization_seed,
+    } => {
+      finalbiome_impex::import_game_spec(endpoint, organization, game_spec, organization_seed).await
+    },
   }
-  
-  Ok(())
 }
