@@ -35,6 +35,9 @@ enum Impex {
     /// Game organization account key seed.
     #[clap(long, short = 's', required = true)]
     organization_seed: String,
+    /// Game manager on whose behalf it will be configured
+    #[clap(long, short = 'm', required = true)]
+    manager_seed: String,
   },
 }
 
@@ -53,6 +56,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
       endpoint,
       game_spec,
       organization_seed,
-    } => finalbiome_impex::import_game_spec(endpoint, game_spec, organization_seed).await,
+      manager_seed,
+    } => {
+      finalbiome_impex::import_game_spec(endpoint, game_spec, organization_seed, manager_seed).await
+    },
   }
 }

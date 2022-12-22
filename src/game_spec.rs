@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::finalbiome::runtime_types;
+use crate::{finalbiome::runtime_types, FungibleAssetIds};
 
 type OrganizationDetails = runtime_types::pallet_organization_identity::types::OrganizationDetails<
   runtime_types::sp_runtime::bounded::bounded_vec::BoundedVec<u8>,
@@ -18,6 +18,8 @@ pub struct GameSpec {
   pub organization_details: OrganizationDetails,
   /// Members of the organization
   pub organization_members: OrganizationMembers,
+  /// Fungible assets
+  pub fa: FungibleAssetIds,
 }
 
 #[derive(Default)]
@@ -30,6 +32,8 @@ pub(crate) struct GameSpecBuilder {
   pub organization_details: Option<OrganizationDetails>,
   /// Members of the organization
   pub organization_members: Option<OrganizationMembers>,
+  /// Fungible assets
+  pub fa: Option<FungibleAssetIds>,
 }
 
 impl GameSpecBuilder {
@@ -66,6 +70,12 @@ impl GameSpecBuilder {
     self
   }
 
+  /// Set FA of the organization
+  pub fn fa(mut self, fa: FungibleAssetIds) -> GameSpecBuilder {
+    self.fa = Some(fa);
+    self
+  }
+
   pub fn try_build(self) -> Result<GameSpec, Box<dyn std::error::Error>> {
     if self.organization_details.is_none() {
       return Err("Organization details not set".into());
@@ -76,6 +86,7 @@ impl GameSpecBuilder {
       hash: self.hash,
       organization_details: self.organization_details.expect("org details exists"),
       organization_members: self.organization_members.expect("org members exists"),
+      fa: self.fa.expect("fa exists"),
     })
   }
 }

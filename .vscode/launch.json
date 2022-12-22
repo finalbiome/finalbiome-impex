@@ -1,0 +1,68 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'finalbiome-impex'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--lib",
+          "--package=finalbiome-impex"
+        ],
+        "filter": {
+          "name": "finalbiome-impex",
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'finalbiome-impex'",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=finalbiome-impex",
+          "--package=finalbiome-impex"
+        ],
+        "filter": {
+          "name": "finalbiome-impex",
+          "kind": "bin"
+        }
+      },
+      "args": [
+        "import",
+        "-g", "game_spec.json",
+        "-s", "0xe5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'finalbiome-impex'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=finalbiome-impex",
+          "--package=finalbiome-impex"
+        ],
+        "filter": {
+          "name": "finalbiome-impex",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
