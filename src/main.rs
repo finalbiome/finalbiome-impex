@@ -29,9 +29,6 @@ enum Impex {
     /// RPC endpoint of the network node.
     #[clap(long, short, default_value = "ws://127.0.0.1:9944")]
     endpoint: String,
-    /// Game address in SS58 format.
-    #[clap(long, short, required = true)]
-    organization: String,
     /// Path to the game file from which the game configuration will be read.
     #[clap(long, short, required = true)]
     game_spec: PathBuf,
@@ -54,11 +51,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } => finalbiome_impex::export_game_spec(endpoint, organization, game_spec, overwrite).await,
     Impex::Import {
       endpoint,
-      organization,
       game_spec,
       organization_seed,
-    } => {
-      finalbiome_impex::import_game_spec(endpoint, organization, game_spec, organization_seed).await
-    },
+    } => finalbiome_impex::import_game_spec(endpoint, game_spec, organization_seed).await,
   }
 }

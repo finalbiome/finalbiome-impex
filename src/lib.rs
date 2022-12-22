@@ -1,11 +1,18 @@
-use sp_core::crypto::Ss58Codec;
-use sp_runtime::{self, MultiSigner};
-use std::{fs::File, path::PathBuf};
-use subxt::{OnlineClient, SubstrateConfig};
+use game_spec::GameSpec;
+use sp_core::crypto::{ExposeSecret, SecretString, Ss58Codec};
+use sp_runtime::{
+  self,
+  traits::{IdentifyAccount, Verify},
+  MultiSigner,
+};
+use std::{
+  fs::File,
+  io::BufReader,
+  path::{Path, PathBuf},
+};
+use subxt::{tx::PairSigner, OnlineClient, PolkadotConfig};
 
 use crate::game_spec::GameSpecBuilder;
-
-type ResultOf<T> = Result<T, Box<dyn std::error::Error>>;
 
 #[subxt::subxt(
   runtime_metadata_path = "artifacts/finalbiome_metadata.scale",
@@ -51,6 +58,9 @@ pub mod finalbiome {}
 
 mod game_spec;
 
+type ResultOf<T> = Result<T, Box<dyn std::error::Error>>;
+type FinalBiomeConfig = PolkadotConfig;
+type Client = OnlineClient<FinalBiomeConfig>;
 /// Export game spec to file.
 ///
 /// The following items are exported:
@@ -64,7 +74,7 @@ pub async fn export_game_spec(
   overwrite_file: bool,
 ) -> ResultOf<()> {
   // init api client
-  let api = OnlineClient::<SubstrateConfig>::from_url(endpoint).await?;
+  let api = Client::from_url(endpoint).await?;
 
   let node_version = fetch_node_version(&api);
   let org_details = fetch_organization_details(&api, &organization);
@@ -92,11 +102,21 @@ pub async fn export_game_spec(
 
 /// Import game spec into the network.
 pub async fn import_game_spec(
-  _endpoint: String,
-  _organization: String,
-  _game_spec: PathBuf,
-  _organization_seed: String,
+  endpoint: String,
+  game_spec_path: PathBuf,
+  organization_seed: String,
 ) -> ResultOf<()> {
+  // init api client
+  let api = Client::from_url(endpoint).await?;
+  // load game spec from file
+  let game_spec = load_game_spec(&game_spec_path)?;
+  // construst the signer
+  let pair = pair_from_suri::<sp_core::sr25519::Pair>(&organization_seed, None)?;
+  let signer = PairSigner::new(pair.clone());
+  // create game in the network
+  post_to_node::<FinalBiomeConfig, sp_core::sr25519::Pair>(&api, game_spec, signer).await?;
+
+  println!("Game spec has been imported to the network");
   Ok(())
 }
 
@@ -135,6 +155,44 @@ where
     .ok_or_else(|| format!("Organization by address {} not found", organization).into())
 }
 
+/// Creates an appropriate game configuration in the network
+async fn post_to_node<Config, Pair>(
+  api: &OnlineClient<Config>,
+  game_spec: GameSpec,
+  signer: PairSigner<Config, Pair>,
+) -> ResultOf<()>
+where
+  Config: subxt::Config,
+  Config::Signature: From<Pair::Signature>,
+  Pair: sp_core::Pair,
+  Pair::Public: Into<MultiSigner>,
+  <Config::Signature as Verify>::Signer:
+    From<Pair::Public> + IdentifyAccount<AccountId = Config::AccountId>,
+  <<Config as subxt::Config>::ExtrinsicParams as subxt::tx::ExtrinsicParams<
+    <Config as subxt::Config>::Index,
+    <Config as subxt::Config>::Hash,
+  >>::OtherParams: std::default::Default,
+  <Config as subxt::Config>::Address: std::convert::From<<Config as subxt::Config>::AccountId>,
+{
+  // todo: make transactional creation of the configuration in the network
+
+  let org_name = game_spec.organization_details.name.0;
+
+  // 1. Create organization
+  let payload = finalbiome::tx()
+    .organization_identity()
+    .create_organization(org_name);
+
+  let _org_create = api
+    .tx()
+    .sign_and_submit_then_watch_default(&payload, &signer)
+    .await?
+    .wait_for_finalized_success()
+    .await?;
+
+  Ok(())
+}
+
 /// Transform uri str to Public key
 fn public_from_uri<Pair>(uri: &str) -> ResultOf<Pair::Public>
 where
@@ -146,4 +204,38 @@ where
   } else {
     Err("Invalid organization address/URI given".into())
   }
+}
+
+/// Try to parse given `uri` and print relevant information.
+///
+/// 1. Try to construct the `Pair` while using `uri` as input for [`sp_core::Pair::from_phrase`].
+///
+/// 2. Try to construct the `Pair` while using `uri` as input for
+/// [`sp_core::Pair::from_string_with_seed`].
+fn pair_from_suri<Pair>(suri: &str, password: Option<SecretString>) -> ResultOf<Pair>
+where
+  Pair: sp_core::Pair,
+  Pair::Public: Into<MultiSigner>,
+{
+  let password = password.as_ref().map(|s| s.expose_secret().as_str());
+
+  if let Ok((pair, _seed)) = Pair::from_phrase(suri, password) {
+    Ok(pair)
+  } else if let Ok((pair, _seed)) = Pair::from_string_with_seed(suri, password) {
+    Ok(pair)
+  } else {
+    Err("Invalid phrase/URI given for the organization seed".into())
+  }
+}
+
+/// Load the game spec form file by given path
+fn load_game_spec<P>(path: P) -> ResultOf<GameSpec>
+where
+  P: AsRef<Path>,
+{
+  // check file exists
+  let f = File::open(&path)?;
+  let reader = BufReader::new(f);
+  let game_spec: GameSpec = serde_json::from_reader(reader)?;
+  Ok(game_spec)
 }
