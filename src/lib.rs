@@ -1,5 +1,6 @@
 use game_spec::GameSpec;
 use sp_core::crypto::{ExposeSecret, SecretString, Ss58Codec};
+use sp_core::hexdisplay::HexDisplay;
 use sp_runtime::{
   self,
   traits::{IdentifyAccount, Verify},
@@ -10,9 +11,9 @@ use std::{
   io::BufReader,
   path::{Path, PathBuf},
 };
-use subxt::{tx::PairSigner, OnlineClient, PolkadotConfig};
+use subxt::{tx::PairSigner, OnlineClient, PolkadotConfig, storage::address::{StorageMapKey, StorageHasher}};
 
-use crate::game_spec::GameSpecBuilder;
+use crate::{game_spec::GameSpecBuilder, utils::AllKeyIter};
 
 #[subxt::subxt(
   runtime_metadata_path = "artifacts/finalbiome_metadata.scale",
@@ -57,6 +58,7 @@ use crate::game_spec::GameSpecBuilder;
 pub mod finalbiome {}
 
 mod game_spec;
+mod utils;
 
 type ResultOf<T> = Result<T, Box<dyn std::error::Error>>;
 type FinalBiomeConfig = PolkadotConfig;
@@ -75,14 +77,19 @@ pub async fn export_game_spec(
 ) -> ResultOf<()> {
   // init api client
   let api = Client::from_url(endpoint).await?;
+  // get current hash
+  let block_hash = fetch_curr_hash(&api).await?;
 
   let node_version = fetch_node_version(&api);
-  let org_details = fetch_organization_details(&api, &organization);
+  let org_details = fetch_organization_details(&api, &organization, block_hash);
+  let org_members = fetch_organization_members(&api, &organization, block_hash);
 
   let game_spec_builder = GameSpecBuilder::new();
   let game_spec = game_spec_builder
     .version(node_version.await?)
+    .hash(format!("0x{}", HexDisplay::from(&block_hash.as_ref())))
     .organization_details(org_details.await?)
+    .organization_members(org_members.await?)
     .try_build()?;
 
   // save to file
@@ -121,9 +128,9 @@ pub async fn import_game_spec(
 }
 
 /// Fetch version of the node
-async fn fetch_node_version<Config>(api: &OnlineClient<Config>) -> ResultOf<String>
+async fn fetch_node_version<T>(api: &OnlineClient<T>) -> ResultOf<String>
 where
-  Config: subxt::Config,
+  T: subxt::Config,
 {
   api
     .rpc()
@@ -132,17 +139,32 @@ where
     .map_err(|_| "Cannot fetch version of the node".into())
 }
 
+// Fetch a concrete block hash to export from. We do this so that if new blocks
+// are produced midway through export, we continue to export at the block
+// we started with and not the new block.
+async fn fetch_curr_hash<T>(api: &OnlineClient<T>) -> ResultOf<T::Hash>
+where
+  T: subxt::Config,
+{
+  api
+    .rpc()
+    .block_hash(None)
+    .await?
+    .ok_or_else(|| "Cannot fetch current hash".into())
+}
+
 /// Fetch organization details by organization address
-async fn fetch_organization_details<Config>(
-  api: &OnlineClient<Config>,
+async fn fetch_organization_details<T>(
+  api: &OnlineClient<T>,
   organization: &str,
+  block_hash: T::Hash,
 ) -> ResultOf<
   finalbiome::runtime_types::pallet_organization_identity::types::OrganizationDetails<
     finalbiome::runtime_types::sp_runtime::bounded::bounded_vec::BoundedVec<u8>,
   >,
 >
 where
-  Config: subxt::Config,
+  T: subxt::Config,
 {
   // get accountId by SS58 address
   let organization_id: sp_runtime::AccountId32 =
@@ -150,9 +172,41 @@ where
   let address = finalbiome::storage()
     .organization_identity()
     .organizations(organization_id);
-  let organization_details = api.storage().fetch(&address, None).await?;
+  let organization_details = api.storage().fetch(&address, Some(block_hash)).await?;
   organization_details
     .ok_or_else(|| format!("Organization by address {} not found", organization).into())
+}
+
+async fn fetch_organization_members<T>(
+  api: &OnlineClient<T>,
+  organization: &str,
+  block_hash: T::Hash,
+) -> ResultOf<Vec<sp_runtime::AccountId32>>
+where
+  T: subxt::Config,
+{
+  // Get accountId by SS58 address
+  let organization_id: sp_runtime::AccountId32 =
+    public_from_uri::<sp_core::sr25519::Pair>(organization)?.into();
+    // Iterate over the membersOf storage to get all managers of the game
+    let key_addr = finalbiome::storage().organization_identity().members_of(&organization_id,&organization_id);
+    // Obtain the root bytes
+    let mut query_key = key_addr.to_root_bytes();
+    // We know that the first key is a AccountId32 and is hashed by Blake2_128Concat.
+    // We can build a `StorageMapKey` that replicates that, and append those bytes to the above.
+    StorageMapKey::new(&organization_id, StorageHasher::Blake2_128Concat).to_bytes(&mut query_key);
+
+    // Iterate over keys at that address and collect values to vec
+    let mut members = vec![];
+    let mut iter = AllKeyIter::new(api, query_key, block_hash, 10);
+    while let Some(key) = iter.next().await? {
+      // we need last 32 bytes - the member id.
+      let member: [u8; 32] = key.0.as_slice()[key.0.len() - 32 ..].try_into().expect("we get last 32 bytes but it is not");
+      let member_id: sp_runtime::AccountId32 = sp_runtime::AccountId32::new(member);
+      println!("Member of {} is {}", &organization_id.to_ss58check(), &member_id.to_ss58check());
+      members.push(member_id);
+    }
+    Ok(members)
 }
 
 /// Creates an appropriate game configuration in the network
@@ -189,6 +243,20 @@ where
     .await?
     .wait_for_finalized_success()
     .await?;
+  
+  // 2. Add members
+  for member_id in game_spec.organization_members {
+    let payload = finalbiome::tx()
+      .organization_identity()
+      .add_member(member_id);
+    
+    let _org_member = api
+      .tx()
+      .sign_and_submit_then_watch_default(&payload, &signer)
+      .await?
+      .wait_for_finalized_success()
+      .await?;
+  }
 
   Ok(())
 }
