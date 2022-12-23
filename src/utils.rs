@@ -1,6 +1,7 @@
 use sp_core::storage::StorageKey;
 use subxt::{
-  tx::{PairSigner, StaticTxPayload, TxEvents},
+  blocks::ExtrinsicEvents,
+  tx::{PairSigner, StaticTxPayload},
   OnlineClient,
 };
 
@@ -73,7 +74,7 @@ pub(crate) async fn submit_default<T, C, P>(
   api: &OnlineClient<T>,
   payload: &StaticTxPayload<C>,
   signer: &PairSigner<T, P>,
-) -> ResultOf<TxEvents<T>>
+) -> ResultOf<ExtrinsicEvents<T>>
 where
   T: subxt::Config,
   P: sp_core::Pair,

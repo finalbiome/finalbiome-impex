@@ -2,6 +2,35 @@
 
 A utility to easily create a game spec for FinalBiome testnet.
 
+The utility allows you to download the full specification of the game from FinalBiome and load it back.
+This is useful when testing game mechanics on test nodes.
+
+To download the specification, only the address of the game is needed.
+
+Loading a spec requires an organization seed and a manager seed, on behalf of which the game is auto-configured based on the spec.
+
+For convenience, the specification is unloaded in json, which allows it to be stored in version control systems and control changes.
+
+Note:
+When creating a game from a specification, all the managers that were in the original game are created. The manager under whose name the game is created is also added to the list of managers (if it is not already there)
+
+## Examples
+
+**Export**
+```
+finalbiome-impex export -g ./game_spec.json -o 5HGjWAeFDfFCWPsjFQdVV2Msvz2XtMktvgocEZcCj68kUMaw
+```
+**Import**
+```
+finalbiome-impex import -g ./game_spec.json -s 0xe5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a -m 0x398f0c28f98885e046333d4a41c19cee4c37368a9832c6502f6cfd182e2aef89
+```
+
+or with phrase
+
+```s
+cargo run import -g ./game_spec.json -s //Alice -m //Bob
+```
+
 ## Usage
 **Commands**:  
   `export`  Export game spec to the file  
