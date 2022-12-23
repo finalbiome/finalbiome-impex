@@ -5,7 +5,7 @@ use std::path::PathBuf;
 #[clap(
   name = "finalbiome-impex",
   author = "FinalBiome Devs <https://github.com/finalbiome>",
-  about = "A utility to easily create a game spec for testnet.",
+  about = "A utility to easily create a game spec for FinalBiome testnet.",
   version
 )]
 enum Impex {
@@ -32,10 +32,10 @@ enum Impex {
     /// Path to the game file from which the game configuration will be read.
     #[clap(long, short, required = true)]
     game_spec: PathBuf,
-    /// Game organization account key seed.
+    /// Game organization account key seed. May be a secret seed or secret URI.
     #[clap(long, short = 's', required = true)]
     organization_seed: String,
-    /// Game manager on whose behalf it will be configured
+    /// Game manager on whose behalf it will be configured. May be a secret seed or secret URI.
     #[clap(long, short = 'm', required = true)]
     manager_seed: String,
   },
