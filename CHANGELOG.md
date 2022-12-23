@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/finalbiome/finalbiome-impex/compare/finalbiome-impex-v0.2.0...finalbiome-impex-v0.2.1) (2022-12-23)
+
+
+### Bug Fixes
+
+* bump version of subxt to `0.25.0` ([f10c058](https://github.com/finalbiome/finalbiome-impex/commit/f10c058261354ecaccd5583544de33273f6c4548))
+
 ## [0.2.0](https://github.com/finalbiome/finalbiome-impex/compare/finalbiome-impex-v0.1.0...finalbiome-impex-v0.2.0) (2022-12-23)
 
 
