@@ -1,5 +1,8 @@
 use sp_core::storage::StorageKey;
-use subxt::OnlineClient;
+use subxt::{
+  tx::{PairSigner, StaticTxPayload, TxEvents},
+  OnlineClient,
+};
 
 use crate::ResultOf;
 
@@ -63,4 +66,32 @@ where
       }
     }
   }
+}
+
+/// Submit Tx payload with default settings.
+pub(crate) async fn submit_default<T, C, P>(
+  api: &OnlineClient<T>,
+  payload: &StaticTxPayload<C>,
+  signer: &PairSigner<T, P>,
+) -> ResultOf<TxEvents<T>>
+where
+  T: subxt::Config,
+  P: sp_core::Pair,
+  C: parity_scale_codec::Encode,
+  <<T as subxt::Config>::ExtrinsicParams as subxt::tx::ExtrinsicParams<
+    <T as subxt::Config>::Index,
+    <T as subxt::Config>::Hash,
+  >>::OtherParams: std::default::Default,
+  <T as subxt::Config>::Address: std::convert::From<<T as subxt::Config>::AccountId>,
+  <T as subxt::Config>::Signature: std::convert::From<<P as sp_core::Pair>::Signature>,
+{
+  let events = api
+    .tx()
+    .sign_and_submit_then_watch_default(payload, signer)
+    .await?
+    .wait_for_in_block()
+    .await?
+    .wait_for_success()
+    .await?;
+  Ok(events)
 }
