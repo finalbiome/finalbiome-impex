@@ -490,8 +490,7 @@ where
   <T as subxt::Config>::Signature: std::convert::From<<P as sp_core::Pair>::Signature>,
 {
   // todo: make transactional creation of the configuration in the network
-  let pr_steps_count = 
-    1 + // create org
+  let pr_steps_count = 1 + // create org
     game_spec.organization_members.len() + 1 + // create members
     game_spec.fa.len() + game_spec.nfa.len() + game_spec.attributes.len() +
     game_spec.nfa.len() * 2 + // for each characteristic 
