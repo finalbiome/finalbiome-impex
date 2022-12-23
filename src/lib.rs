@@ -18,6 +18,7 @@ use subxt::{
 };
 
 use finalbiome::runtime_types;
+use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::{
   game_spec::GameSpecBuilder,
@@ -297,11 +298,7 @@ where
       .try_into()
       .expect("we get last 32 bytes but it is not");
     let member_id: sp_runtime::AccountId32 = sp_runtime::AccountId32::new(member);
-    println!(
-      "Member of {} is {}",
-      &organization_id.to_ss58check(),
-      &member_id.to_ss58check()
-    );
+
     members.push(member_id);
   }
   Ok(members)
@@ -331,7 +328,6 @@ where
     let asset_id_encoded = key.0.as_slice()[key.0.len() - 4..].to_vec();
     let asset_id = FungibleAssetId::decode(&mut &*asset_id_encoded)?;
 
-    // println!("Member of {} is {}", &organization_id.to_ss58check(), &member_id.to_ss58check());
     asset_ids.push(asset_id);
   }
 
@@ -377,7 +373,6 @@ where
     let class_id_encoded = key.0.as_slice()[key.0.len() - 4..].to_vec();
     let class_id = NonFungibleClassId::decode(&mut &*class_id_encoded)?;
 
-    // println!("Member of {} is {}", &organization_id.to_ss58check(), &member_id.to_ss58check());
     class_ids.push(class_id);
   }
   Ok(class_ids)
@@ -415,7 +410,7 @@ where
 /// Fetch all attributes keys for given nfa
 async fn fetch_nfa_attributes_ids<T>(
   api: &OnlineClient<T>,
-  organization_id: &AccountId32,
+  _organization_id: &AccountId32,
   block_hash: T::Hash,
   nfa_id: NonFungibleClassId,
 ) -> ResultOf<Vec<AttributeKey>>
@@ -441,11 +436,6 @@ where
     let attr_key_encoded = key.0.as_slice()[partial_length + 16..].to_vec();
     let attr_key = AttributeKey::decode(&mut &*attr_key_encoded)?;
 
-    println!(
-      "Attrs of {} is {}",
-      &organization_id.to_ss58check(),
-      std::str::from_utf8(&attr_key.0).expect("attr key is text")
-    );
     attrs_keys.push(attr_key);
   }
   Ok(attrs_keys)
@@ -500,19 +490,32 @@ where
   <T as subxt::Config>::Signature: std::convert::From<<P as sp_core::Pair>::Signature>,
 {
   // todo: make transactional creation of the configuration in the network
+  let pr_steps_count = 
+    1 + // create org
+    game_spec.organization_members.len() + 1 + // create members
+    game_spec.fa.len() + game_spec.nfa.len() + game_spec.attributes.len() +
+    game_spec.nfa.len() * 2 + // for each characteristic 
+    1 //onbording
+    ;
+
+  let pb = ProgressBar::new(pr_steps_count as u64);
+  pb.set_style(ProgressStyle::with_template("{spinner:.green} {wide_bar} {msg}").expect("ok"));
 
   let org_name = game_spec.clone().organization_details.name.0;
 
   // 1. Create organization
+  pb.set_message("Creating organization...");
   let payload = finalbiome::tx()
     .organization_identity()
     .create_organization(org_name);
 
   submit_default(api, &payload, &organization_signer).await?;
+  pb.inc(1);
 
   // 2. Add members
   // Also add the manager that is explicitly passed to the app (if the manager is not included in
   // the specification)
+  pb.set_message("Adding members organization...");
   let expl_manager = manager_signer.account_id().clone();
   let mut members = game_spec.organization_members.clone();
   if !members.contains(&expl_manager) {
@@ -524,11 +527,12 @@ where
       .add_member(member_id);
 
     submit_default(api, &payload, &organization_signer).await?;
+    pb.inc(1);
   }
 
   // 3. Create FA
   // for the each fa id in the game spec we store an id of the created asset.
-
+  pb.set_message("Creating FAs...");
   // map stores the original and new id of the FA
   let mut fa_ids_map = HashMap::new();
 
@@ -543,6 +547,7 @@ where
     );
 
     let fa_create = submit_default(api, &payload, &manager_signer).await?;
+    pb.inc(1);
 
     // lookup events and find asset id of the created asset
     let created_event = fa_create
@@ -552,11 +557,9 @@ where
     fa_ids_map.insert(fa_id, created_event.asset_id);
   }
 
-  println!("{:?}", fa_ids_map);
-
   // 4. Create NFA
   // for the each fa id in the game spec we store an id of the created asset.
-
+  pb.set_message("Creating NFAs...");
   // map stores the original and new id of the FA
   let mut nfa_ids_map = HashMap::new();
 
@@ -567,14 +570,13 @@ where
       .non_fungible_assets()
       .create(organization_id.clone(), nfa_details.name.0);
     let nfa_create = submit_default(api, &payload, &manager_signer).await?;
+    pb.inc(1);
     // lookup events and find asset id of the created asset
     let created_event = nfa_create
       .find_first::<finalbiome::non_fungible_assets::events::Created>()?
       .ok_or_else(|| format!("Creating of NFA {:?} failed", nfa_id_orig))?;
     let nfa_id_created = created_event.class_id;
     nfa_ids_map.insert(nfa_id_orig, nfa_id_created);
-
-    println!("NFA {:?} Created", nfa_id_orig);
 
     // 2. Add attributes
     let attrs = game_spec
@@ -590,6 +592,7 @@ where
         attr,
       );
       submit_default(api, &payload, &manager_signer).await?;
+      pb.inc(1);
     }
 
     // 3. Set characteristics
@@ -604,6 +607,7 @@ where
       );
       submit_default(api, &payload, &manager_signer).await?;
     }
+    pb.inc(1);
     // 3.2 Purchased
     if let Some(purchased) = nfa_spec.purchased {
       let characteristic = Characteristic::Purchased(Some(purchased));
@@ -614,6 +618,7 @@ where
       );
       submit_default(api, &payload, &manager_signer).await?;
     }
+    pb.inc(1);
   }
 
   // LAST. Create Onboarding
@@ -642,8 +647,10 @@ where
         )),
       );
     submit_default(api, &payload, &manager_signer).await?;
+    pb.inc(1);
   }
 
+  pb.finish_with_message("done");
   Ok(())
 }
 
