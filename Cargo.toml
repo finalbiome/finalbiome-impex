@@ -1,6 +1,6 @@
 [package]
 name = "finalbiome-impex"
-version = "0.1.0"
+version = "0.2.0"
 description = "A utility to easily create a game spec for testnet."
 authors = ["FinalBiome Devs <https://github.com/finalbiome>"]
 homepage = "https://finalbiome.net/"
