@@ -1,13 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-  finalbiome::runtime_types, AttributesDetails, FungibleAssetIds, NonFungibleClassDetails,
-  NonFungibleClassId, NonFungibleDetails,
+  AttributesDetails, FungibleAssetIds, NonFungibleClassDetails, NonFungibleClassId,
+  NonFungibleDetails, OrganizationDetails,
 };
 
-type OrganizationDetails = runtime_types::pallet_organization_identity::types::OrganizationDetails<
-  runtime_types::sp_runtime::bounded::bounded_vec::BoundedVec<u8>,
->;
 type OrganizationMembers = Vec<sp_runtime::AccountId32>;
 
 #[derive(Serialize, Deserialize, Clone)]

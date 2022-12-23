@@ -4,10 +4,7 @@ use sp_core::{
   crypto::{ExposeSecret, SecretString, Ss58Codec},
   hexdisplay::HexDisplay,
 };
-use sp_runtime::{
-  self,
-  AccountId32, MultiAddress, MultiSigner,
-};
+use sp_runtime::{self, AccountId32, MultiAddress, MultiSigner};
 use std::{
   collections::HashMap,
   fs::File,
@@ -16,14 +13,15 @@ use std::{
 };
 use subxt::{
   storage::address::{StorageHasher, StorageMapKey},
-  tx::PairSigner,
+  tx::{PairSigner, Signer},
   OnlineClient, PolkadotConfig,
 };
-use subxt::tx::Signer;
+
+use finalbiome::runtime_types;
 
 use crate::{
-  finalbiome::runtime_types::{pallet_support::{characteristics::Characteristic, Attribute}},
   game_spec::GameSpecBuilder,
+  runtime_types::pallet_support::{characteristics::Characteristic, Attribute},
   utils::{submit_default, AllKeyIter},
 };
 
@@ -119,31 +117,33 @@ mod utils;
 type ResultOf<T> = Result<T, Box<dyn std::error::Error>>;
 type FinalBiomeConfig = PolkadotConfig;
 type Client = OnlineClient<FinalBiomeConfig>;
+
+type BoundedVec<T> = runtime_types::sp_runtime::bounded::bounded_vec::BoundedVec<T>;
+
+pub(crate) type OrganizationDetails =
+  runtime_types::pallet_organization_identity::types::OrganizationDetails<BoundedVec<u8>>;
+
 pub(crate) type FungibleAssetDetails =
-  finalbiome::runtime_types::pallet_fungible_assets::types::AssetDetails<
-    AccountId32,
-    finalbiome::runtime_types::sp_runtime::bounded::bounded_vec::BoundedVec<u8>,
-  >;
+  runtime_types::pallet_fungible_assets::types::AssetDetails<AccountId32, BoundedVec<u8>>;
 pub(crate) type FungibleAssetId =
-  finalbiome::runtime_types::pallet_support::types::fungible_asset_id::FungibleAssetId;
+  runtime_types::pallet_support::types::fungible_asset_id::FungibleAssetId;
 
 pub(crate) type NonFungibleClassId =
-  finalbiome::runtime_types::pallet_support::types::non_fungible_class_id::NonFungibleClassId;
+  runtime_types::pallet_support::types::non_fungible_class_id::NonFungibleClassId;
 
 pub(crate) type NonFungibleDetails =
-  finalbiome::runtime_types::pallet_support::types_nfa::ClassDetails<AccountId32>;
+  runtime_types::pallet_support::types_nfa::ClassDetails<AccountId32>;
 
 pub(crate) type FungibleAssetIds = Vec<(FungibleAssetId, FungibleAssetDetails)>;
 pub(crate) type NonFungibleClassDetails = Vec<(NonFungibleClassId, NonFungibleDetails)>;
-pub(crate) type AttributeKey =
-  finalbiome::runtime_types::sp_runtime::bounded::bounded_vec::BoundedVec<u8>;
+pub(crate) type AttributeKey = BoundedVec<u8>;
 pub(crate) type AttributesDetails = Vec<(
   NonFungibleClassId,
   AttributeKey,
-  finalbiome::runtime_types::pallet_support::AttributeValue,
+  runtime_types::pallet_support::AttributeValue,
 )>;
 
-type AirDropAsset = finalbiome::runtime_types::pallet_organization_identity::types::AirDropAsset;
+type AirDropAsset = runtime_types::pallet_organization_identity::types::AirDropAsset;
 
 /// Export game spec to file.
 ///
@@ -259,11 +259,7 @@ async fn fetch_organization_details<T>(
   api: &OnlineClient<T>,
   organization_id: &AccountId32,
   block_hash: T::Hash,
-) -> ResultOf<
-  finalbiome::runtime_types::pallet_organization_identity::types::OrganizationDetails<
-    finalbiome::runtime_types::sp_runtime::bounded::bounded_vec::BoundedVec<u8>,
-  >,
->
+) -> ResultOf<OrganizationDetails>
 where
   T: subxt::Config,
 {
@@ -333,10 +329,7 @@ where
   while let Some(key) = iter.next().await? {
     // we need last 4 bytes (u32) - the asset id.
     let asset_id_encoded = key.0.as_slice()[key.0.len() - 4..].to_vec();
-    let asset_id =
-      finalbiome::runtime_types::pallet_support::types::fungible_asset_id::FungibleAssetId::decode(
-        &mut &*asset_id_encoded,
-      )?;
+    let asset_id = FungibleAssetId::decode(&mut &*asset_id_encoded)?;
 
     // println!("Member of {} is {}", &organization_id.to_ss58check(), &member_id.to_ss58check());
     asset_ids.push(asset_id);
@@ -382,10 +375,7 @@ where
   while let Some(key) = iter.next().await? {
     // we need last 4 bytes (u32) - the asset id.
     let class_id_encoded = key.0.as_slice()[key.0.len() - 4..].to_vec();
-    let class_id =
-      finalbiome::runtime_types::pallet_support::types::non_fungible_class_id::NonFungibleClassId::decode(
-        &mut &*class_id_encoded,
-      )?;
+    let class_id = NonFungibleClassId::decode(&mut &*class_id_encoded)?;
 
     // println!("Member of {} is {}", &organization_id.to_ss58check(), &member_id.to_ss58check());
     class_ids.push(class_id);
@@ -500,14 +490,14 @@ async fn post_to_node<T, P>(
   manager_signer: PairSigner<T, P>,
 ) -> ResultOf<()>
 where
-T: subxt::Config<AccountId = AccountId32>,
-P: sp_core::Pair,
-<<T as subxt::Config>::ExtrinsicParams as subxt::tx::ExtrinsicParams<
-  <T as subxt::Config>::Index,
-  <T as subxt::Config>::Hash,
->>::OtherParams: std::default::Default,
-<T as subxt::Config>::Address: std::convert::From<<T as subxt::Config>::AccountId>,
-<T as subxt::Config>::Signature: std::convert::From<<P as sp_core::Pair>::Signature>,
+  T: subxt::Config<AccountId = AccountId32>,
+  P: sp_core::Pair,
+  <<T as subxt::Config>::ExtrinsicParams as subxt::tx::ExtrinsicParams<
+    <T as subxt::Config>::Index,
+    <T as subxt::Config>::Hash,
+  >>::OtherParams: std::default::Default,
+  <T as subxt::Config>::Address: std::convert::From<<T as subxt::Config>::AccountId>,
+  <T as subxt::Config>::Signature: std::convert::From<<P as sp_core::Pair>::Signature>,
 {
   // todo: make transactional creation of the configuration in the network
 
@@ -628,22 +618,29 @@ P: sp_core::Pair,
 
   // LAST. Create Onboarding
   if let Some(onboarding) = game_spec.organization_details.onboarding_assets {
-
     let mut air_assets = vec![];
     // transform orig ids to created
     for asset_orig in onboarding.0 {
       let asset_created = match asset_orig {
-        AirDropAsset::Fa(id, bal) => AirDropAsset::Fa(*fa_ids_map.get(&id).expect("fa not found"), bal),
-        AirDropAsset::Nfa(id, attrs) => AirDropAsset::Nfa(*nfa_ids_map.get(&id).expect("fa not found"), attrs),
+        AirDropAsset::Fa(id, bal) => {
+          AirDropAsset::Fa(*fa_ids_map.get(&id).expect("fa not found"), bal)
+        },
+        AirDropAsset::Nfa(id, attrs) => {
+          AirDropAsset::Nfa(*nfa_ids_map.get(&id).expect("fa not found"), attrs)
+        },
       };
 
       air_assets.push(asset_created);
     }
 
-
     let payload = finalbiome::tx()
       .organization_identity()
-      .set_onboarding_assets(organization_signer.account_id().clone(), Some(finalbiome::runtime_types::sp_runtime::bounded::bounded_vec::BoundedVec(air_assets)));
+      .set_onboarding_assets(
+        organization_signer.account_id().clone(),
+        Some(runtime_types::sp_runtime::bounded::bounded_vec::BoundedVec(
+          air_assets,
+        )),
+      );
     submit_default(api, &payload, &manager_signer).await?;
   }
 
