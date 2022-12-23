@@ -22,7 +22,7 @@ use subxt::{
 use subxt::tx::Signer;
 
 use crate::{
-  finalbiome::runtime_types::pallet_support::{characteristics::Characteristic, Attribute},
+  finalbiome::runtime_types::{pallet_support::{characteristics::Characteristic, Attribute}},
   game_spec::GameSpecBuilder,
   utils::{submit_default, AllKeyIter},
 };
@@ -142,6 +142,8 @@ pub(crate) type AttributesDetails = Vec<(
   AttributeKey,
   finalbiome::runtime_types::pallet_support::AttributeValue,
 )>;
+
+type AirDropAsset = finalbiome::runtime_types::pallet_organization_identity::types::AirDropAsset;
 
 /// Export game spec to file.
 ///
@@ -622,6 +624,27 @@ P: sp_core::Pair,
       );
       submit_default(api, &payload, &manager_signer).await?;
     }
+  }
+
+  // LAST. Create Onboarding
+  if let Some(onboarding) = game_spec.organization_details.onboarding_assets {
+
+    let mut air_assets = vec![];
+    // transform orig ids to created
+    for asset_orig in onboarding.0 {
+      let asset_created = match asset_orig {
+        AirDropAsset::Fa(id, bal) => AirDropAsset::Fa(*fa_ids_map.get(&id).expect("fa not found"), bal),
+        AirDropAsset::Nfa(id, attrs) => AirDropAsset::Nfa(*nfa_ids_map.get(&id).expect("fa not found"), attrs),
+      };
+
+      air_assets.push(asset_created);
+    }
+
+
+    let payload = finalbiome::tx()
+      .organization_identity()
+      .set_onboarding_assets(organization_signer.account_id().clone(), Some(finalbiome::runtime_types::sp_runtime::bounded::bounded_vec::BoundedVec(air_assets)));
+    submit_default(api, &payload, &manager_signer).await?;
   }
 
   Ok(())
