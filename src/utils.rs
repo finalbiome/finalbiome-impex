@@ -1,7 +1,8 @@
 use sp_core::storage::StorageKey;
 use subxt::{
+  blocks::ExtrinsicEvents,
   tx::{PairSigner, StaticTxPayload},
-  OnlineClient, blocks::ExtrinsicEvents,
+  OnlineClient,
 };
 
 use crate::ResultOf;
