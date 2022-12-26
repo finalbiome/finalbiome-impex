@@ -17,7 +17,7 @@ use subxt::{
   OnlineClient, PolkadotConfig,
 };
 
-use finalbiome::runtime_types;
+use finalbiome::runtime_types::{self, pallet_support::characteristics::bettor::BettorWinning};
 use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::{
@@ -597,7 +597,14 @@ where
     // 3. Set characteristics
     // 3.1 Bettor
     let nfa_spec = game_spec.clone().get_nfa(nfa_id_orig);
-    if let Some(bettor) = nfa_spec.bettor {
+    if let Some(mut bettor) = nfa_spec.bettor {
+      // remap orig assets ids into created
+      for winning in &mut bettor.winnings.0 {
+        match winning {
+          BettorWinning::Fa(id, _) => *id = *fa_ids_map.get(id).expect("no fa found"),
+          BettorWinning::Nfa(id) => *id = *nfa_ids_map.get(id).expect("no fa found"),
+        }
+      }
       let characteristic = Characteristic::Bettor(Some(bettor));
       let payload = finalbiome::tx().non_fungible_assets().set_characteristic(
         organization_id.clone(),
@@ -608,7 +615,12 @@ where
     }
     pb.inc(1);
     // 3.2 Purchased
-    if let Some(purchased) = nfa_spec.purchased {
+    if let Some(mut purchased) = nfa_spec.purchased {
+      // remap orig assets ids into created
+      for offer in &mut purchased.offers.0 {
+        offer.fa = *fa_ids_map.get(&offer.fa).expect("no fa found");
+      }
+
       let characteristic = Characteristic::Purchased(Some(purchased));
       let payload = finalbiome::tx().non_fungible_assets().set_characteristic(
         organization_id.clone(),
