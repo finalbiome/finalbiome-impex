@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/finalbiome/finalbiome-impex/compare/finalbiome-impex-v0.2.1...finalbiome-impex-v0.2.2) (2022-12-26)
+
+
+### Bug Fixes
+
+* remaping assets ids in characteristics ([7f9bad4](https://github.com/finalbiome/finalbiome-impex/commit/7f9bad47702e9bd61ab6c1478a9f26270cb82782))
+
 ## [0.2.1](https://github.com/finalbiome/finalbiome-impex/compare/finalbiome-impex-v0.2.0...finalbiome-impex-v0.2.1) (2022-12-23)
 
 
